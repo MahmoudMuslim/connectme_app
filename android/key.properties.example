@@ -1,0 +1,20 @@
+# Release signing configuration for the ConnectMe beta APK.
+#
+# Copy this file to `android/key.properties` and fill in real values. The file is
+# git-ignored, so no keystore secret ever reaches the repository.
+#
+# 1. Generate a keystore (once):
+#      keytool -genkey -v -keystore ~/connectme-upload.jks \
+#              -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# 2. Fill in the four values below.
+#
+# 3. Build the beta APK:
+#      flutter build apk --release \
+#        --dart-define=GOOGLE_MAPS_API_KEY=AIza... \
+#        -PMAPS_API_KEY=AIza...
+
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=C:/Users/YOU/connectme-upload.jks

@@ -1,0 +1,46 @@
+# Static analysis configuration for the ConnectMe app.
+#
+# Run `flutter analyze` before submitting: the project must report zero issues.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    # `figma/` holds the auto-exported, non-compilable layout fragments of the
+    # design kit. They are kept for reference only and are never imported.
+    - figma/**
+
+  errors:
+    # Treat unused code and dead code as build-breaking.
+    unused_import: error
+    unused_local_variable: error
+    dead_code: error
+
+linter:
+  rules:
+    # Correctness
+    - always_declare_return_types
+    - cancel_subscriptions
+    - close_sinks
+    - use_super_parameters
+
+    # Readability
+    - directives_ordering
+    - prefer_final_locals
+    - prefer_single_quotes
+    - require_trailing_commas
+    - sort_child_properties_last
+    - unnecessary_lambdas
+    - unnecessary_parenthesis
+
+    # Cubits keep their collaborators in private fields but expose them through
+    # readable public parameter names, so `this._x` initializing formals are not
+    # usable here without making the constructor API leak private identifiers.
+    - prefer_initializing_formals: false

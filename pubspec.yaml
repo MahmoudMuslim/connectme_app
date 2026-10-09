@@ -1,0 +1,75 @@
+name: connectme_app
+description: "ConnectMe - an end-to-end community social app built with Flutter, Clean Architecture and Firebase."
+publish_to: 'none'
+
+# versionName / versionCode used by Firebase App Distribution for the beta build.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- State Management (Cubit) -------------------------------------------------
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+
+  # --- Dependency Injection (GetIt) ---------------------------------------------
+  get_it: ^8.0.3
+
+  # --- Functional programming helper used to return Failure | Success ---------
+  dartz: ^0.10.1
+
+  # --- Firebase ----------------------------------------------------------------
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  cloud_firestore: ^6.1.0
+
+  # --- Native device capabilities ----------------------------------------------
+  image_picker: ^1.2.0
+  local_auth: ^3.0.0
+  device_info_plus: ^12.3.0
+
+  # --- Maps --------------------------------------------------------------------
+  google_maps_flutter: ^2.13.1
+  geolocator: ^14.0.2
+
+  # --- Persistence (offline cache + auth persistence in demo mode) -------------
+  shared_preferences: ^2.5.4
+
+  # --- Security ---------------------------------------------------------------
+  # SHA-256 hashing of the demo-mode account passwords.
+  crypto: ^3.0.7
+
+  # --- UI ----------------------------------------------------------------------
+  intl: ^0.20.2
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.4
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Poppins substitutes the kit's commercial families (Proxima Nova + Circular
+  # Std). It is bundled rather than fetched at runtime with `google_fonts` so
+  # the release APK renders the design identically offline.
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins-ExtraBold.ttf
+          weight: 800

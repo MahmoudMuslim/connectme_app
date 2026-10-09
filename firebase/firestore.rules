@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// ConnectMe — Cloud Firestore security rules.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+//
+// Principle of least privilege:
+//   * anyone may READ the community feed, the member roster and the donation
+//     history (the app is a public community board);
+//   * only a signed-in member may WRITE, and only their own documents.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: true when the caller is signed in.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: true when the caller owns `userId`.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Every field a profile document is allowed to contain.
+    function profileFields() {
+      return ['id', 'fullName', 'email', 'photoUrl', 'deviceModel',
+              'osVersion', 'createdAt'];
+    }
+
+    // Rejects a profile that carries an unexpected field.
+    function validProfileFields(data) {
+      return data.keys().hasOnly(profileFields());
+    }
+
+    // ---------------------------------------------------------------- profiles
+    match /users/{userId} {
+      // The roster is public so the app-bar avatars render for everyone.
+      allow read: if true;
+
+      // A member may create their own profile...
+      allow create: if isOwner(userId)
+                    && validProfileFields(request.resource.data)
+                    && request.resource.data.id == userId;
+
+      // ...and may only edit their own profile. `diff().affectedKeys()` makes
+      // the write allow-list explicit, so a member cannot smuggle an unexpected
+      // field (or change their own `id`) into the document.
+      allow update: if isOwner(userId)
+                    && validProfileFields(request.resource.data)
+                    && request.resource.data.id == userId
+                    && request.resource.data.diff(resource.data)
+                                  .affectedKeys().hasOnly(profileFields());
+
+      allow delete: if isOwner(userId);
+    }
+
+    // ------------------------------------------------------------------- posts
+    match /posts/{postId} {
+      // The community feed is public and real time.
+      allow read: if true;
+
+      allow create: if isSignedIn()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.content is string
+                    && request.resource.data.content.size() > 0
+                    && request.resource.data.content.size() <= 280;
+
+      allow update: if isSignedIn()
+                    && resource.data.authorId == request.auth.uid;
+
+      // Only the author may delete their own post.
+      allow delete: if isSignedIn()
+                    && resource.data.authorId == request.auth.uid;
+    }
+
+    // --------------------------------------------------------------- donations
+    match /donations/{donationId} {
+      // The donation history is public.
+      allow read: if true;
+
+      // A donation receipt must carry a positive amount and the donor's uid.
+      allow create: if isSignedIn()
+                    && request.resource.data.donorId == request.auth.uid
+                    && request.resource.data.amount is number
+                    && request.resource.data.amount > 0;
+
+      // Receipts are immutable.
+      allow update, delete: if false;
+    }
+
+    // Default deny for anything not explicitly allowed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
