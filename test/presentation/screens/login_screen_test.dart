@@ -23,6 +23,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/connect_me_test_binding.dart';
+
 /// In-memory [UserRepository] so the login form can be exercised end to end
 /// without a Firebase project.
 class FakeUserRepository implements UserRepository {
@@ -83,9 +85,8 @@ class FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<Result<void>> sendPasswordResetEmail({
-    required String email,
-  }) async => const Success<void>(null);
+  Future<Result<void>> sendPasswordResetEmail({required String email}) async =>
+      const Success<void>(null);
 
   @override
   Future<Result<User>> updateProfilePhoto({
@@ -144,11 +145,8 @@ void main() {
   late AuthCubit cubit;
 
   setUp(() async {
+    await setUpConnectMe();
     repository = FakeUserRepository();
-    // Use a fake FirestoreService for testing
-    FirestoreService.registerInstance(
-      FirestoreService.forTesting(_FakeFirestore()),
-    );
     cubit = AuthCubit(
       signInUseCase: SignIn(repository),
       signUpUseCase: SignUp(repository),
@@ -165,7 +163,7 @@ void main() {
   tearDown(() async {
     await cubit.close();
     await repository.dispose();
-    FirestoreService.resetForTesting();
+    await resetConnectMe();
   });
 
   group('LoginScreen', () {
@@ -371,9 +369,4 @@ void main() {
       }
     });
   });
-}
-
-/// Minimal fake Firestore for testing.
-class _FakeFirestore {
-  const _FakeFirestore();
 }

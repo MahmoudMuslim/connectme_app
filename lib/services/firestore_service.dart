@@ -15,18 +15,16 @@ import '../firebase_options.dart';
 /// repositories or cubits ask for it. Tests inject their own instance through
 /// [registerInstance].
 class FirestoreService {
-  FirestoreService._({required this._firestore});
+  FirestoreService._({required this.firestore});
 
   /// Test-only constructor for injecting a fake Firestore.
-  FirestoreService.forTesting(Object firestore) : _firestore = firestore;
+  FirestoreService.forTesting(this.firestore);
 
   /// The one and only instance.
   static FirestoreService? _instance;
 
   /// Firestore handle — never null after successful bootstrap.
-  final Object _firestore;
-
-  FirebaseFirestore get _firestoreImpl => _firestore as FirebaseFirestore;
+  final FirebaseFirestore firestore;
 
   /// The shared instance, bootstrapping Firebase on first access.
   static FirestoreService get instance => _instance ??= _bootstrap();
@@ -45,23 +43,72 @@ class FirestoreService {
 
   /// Root reference of the `posts` collection.
   CollectionReference<Map<String, dynamic>> get postsCollection =>
-      _firestoreImpl.collection(AppConstants.postsCollection);
+      firestore.collection(AppConstants.postsCollection);
 
   /// Root reference of the `users` collection.
   CollectionReference<Map<String, dynamic>> get usersCollection =>
-      _firestoreImpl.collection(AppConstants.usersCollection);
+      firestore.collection(AppConstants.usersCollection);
 
   /// Root reference of the `donations` collection.
   CollectionReference<Map<String, dynamic>> get donationsCollection =>
-      _firestoreImpl.collection(AppConstants.donationsCollection);
+      firestore.collection(AppConstants.donationsCollection);
 
-  /// `true` — Firebase is mandatory now, no demo mode.
+  /// `true` — Firebase is mandatory.
   bool get isReady => true;
 
   static FirestoreService _bootstrap() {
-    // Firebase configuration is mandatory — no demo mode fallback.
-    final FirebaseOptions options = _resolveFirebaseOptions();
+    // Priority 1: `--dart-define=FORCE_DEMO_MODE=true` (local development without Firebase)
+    if (AppConfig.forceDemoMode) {
+      throw StateError(
+        'FORCE_DEMO_MODE is not supported in production. '
+        'Use a real Firebase project or run tests with mocktail.',
+      );
+    }
 
+    // Priority 2: `--dart-define` flags (CI / per-flavor builds)
+    if (AppConfig.isFirebaseConfigured) {
+      return _initWithOptions(
+        FirebaseOptions(
+          apiKey: AppConfig.firebaseApiKey,
+          appId: AppConfig.firebaseAppId,
+          messagingSenderId: AppConfig.firebaseMessagingSenderId,
+          projectId: AppConfig.firebaseProjectId,
+          authDomain: AppConfig.firebaseAuthDomain.isEmpty
+              ? '${AppConfig.firebaseProjectId}.firebaseapp.com'
+              : AppConfig.firebaseAuthDomain,
+          storageBucket: AppConfig.firebaseStorageBucket.isEmpty
+              ? '${AppConfig.firebaseProjectId}.appspot.com'
+              : AppConfig.firebaseStorageBucket,
+        ),
+      );
+    }
+
+    // Priority 3: Generated `firebase_options.dart` (flutterfire configure)
+    try {
+      return _initWithOptions(DefaultFirebaseOptions.currentPlatform);
+    } on UnsupportedError catch (_) {
+      // Platform not configured in firebase_options.dart
+    } on Error catch (_) {
+      // firebase_options.dart missing or invalid
+    }
+
+    // No configuration — fail fast with clear instructions
+    throw StateError(
+      'No Firebase configuration found.\n\n'
+      'To run ConnectMe you need a Firebase project:\n'
+      '1. Run `flutterfire configure` to generate firebase_options.dart, OR\n'
+      '2. Supply all --dart-define=FIREBASE_* flags at build/run time:\n'
+      '   --dart-define=FIREBASE_API_KEY=...\n'
+      '   --dart-define=FIREBASE_APP_ID=...\n'
+      '   --dart-define=FIREBASE_MESSAGING_SENDER_ID=...\n'
+      '   --dart-define=FIREBASE_PROJECT_ID=...\n'
+      '   --dart-define=FIREBASE_AUTH_DOMAIN=...\n'
+      '   --dart-define=FIREBASE_STORAGE_BUCKET=...\n\n'
+      'For web, also add Firebase SDK init to web/index.html with your web app config.',
+    );
+  }
+
+  static FirestoreService _initWithOptions(FirebaseOptions options) {
     try {
       if (Firebase.apps.isEmpty) {
         Firebase.initializeApp(options: options);
@@ -74,36 +121,6 @@ class FirestoreService {
       );
     } on Object catch (error) {
       throw StateError('Firebase could not be started ($error).');
-    }
-  }
-
-  /// Builds the [FirebaseOptions] from `--dart-define` when every mandatory
-  /// value is present, otherwise falls back to the generated `firebase_options.dart`.
-  /// Throws if neither is available.
-  static FirebaseOptions _resolveFirebaseOptions() {
-    if (AppConfig.isFirebaseConfigured) {
-      return FirebaseOptions(
-        apiKey: AppConfig.firebaseApiKey,
-        appId: AppConfig.firebaseAppId,
-        messagingSenderId: AppConfig.firebaseMessagingSenderId,
-        projectId: AppConfig.firebaseProjectId,
-        authDomain: AppConfig.firebaseAuthDomain.isEmpty
-            ? '${AppConfig.firebaseProjectId}.firebaseapp.com'
-            : AppConfig.firebaseAuthDomain,
-        storageBucket: AppConfig.firebaseStorageBucket.isEmpty
-            ? '${AppConfig.firebaseProjectId}.appspot.com'
-            : AppConfig.firebaseStorageBucket,
-      );
-    }
-    try {
-      return DefaultFirebaseOptions.currentPlatform;
-    } on UnsupportedError {
-      throw StateError(
-        'No Firebase configuration for this platform. '
-        'Run `flutterfire configure` or supply --dart-define=FIREBASE_* flags.',
-      );
-    } on Error {
-      throw StateError('Failed to load firebase_options.dart.');
     }
   }
 }
