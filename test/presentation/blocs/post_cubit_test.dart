@@ -13,7 +13,6 @@ import 'package:connectme_app/domain/usecases/get_posts.dart';
 import 'package:connectme_app/presentation/blocs/post/post_cubit.dart';
 import 'package:connectme_app/presentation/blocs/post/post_state.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Fake data source so [PostCubit] can be tested without Firebase.
 class FakePostDataSource implements PostDataSource {
@@ -105,9 +104,8 @@ void main() {
   late PostCubit cubit;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
     dataSource = FakePostDataSource(<PostModel>[_model('p1')]);
-    cacheStore = PostCacheStore(await SharedPreferences.getInstance());
+    cacheStore = PostCacheStore();
     repository = PostRepositoryImpl.withDataSource(dataSource, cacheStore);
     cubit = PostCubit(
       getPosts: GetPosts(repository),

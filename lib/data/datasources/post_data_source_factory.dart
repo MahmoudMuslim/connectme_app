@@ -1,5 +1,3 @@
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../services/firestore_service.dart';
 import 'firestore_post_datasource.dart';
 import 'local_post_datasource.dart';
@@ -17,47 +15,32 @@ import 'post_datasource.dart';
 /// HTTP API, a Room database) only means writing a new [PostDataSource] and one
 /// extra branch here — nothing else in the app changes (Open/Closed).
 class PostDataSourceFactory {
-  PostDataSourceFactory({
-    required this.firestoreService,
-    required this.preferences,
-  });
+  PostDataSourceFactory({required this.firestoreService});
 
   final FirestoreService firestoreService;
-  final SharedPreferences preferences;
 
   /// Builds the data source matching [preference].
   ///
-  /// * [DataSourcePreference.auto] — Firestore when it initialised, cache
-  ///   otherwise. This is what the app uses in production.
-  /// * [DataSourcePreference.remote] — forces Firestore (integration tests).
-  /// * [DataSourcePreference.local] — forces the cache (offline demos, unit
-  ///   tests).
-  ///
-  /// When the local source is selected, the cache is seeded with the demo feed
-  /// so a reviewer opening the beta build without credentials still sees a
-  /// populated, interactive community.
+  /// * [DataSourcePreference.auto] / [DataSourcePreference.remote] — Firestore
+  /// * [DataSourcePreference.local] — local cache (for unit tests only)
   Future<PostDataSource> create({
     DataSourcePreference preference = DataSourcePreference.auto,
   }) async {
     final PostDataSource dataSource = switch (preference) {
       DataSourcePreference.remote => _createRemote(),
       DataSourcePreference.local => _createLocal(),
-      DataSourcePreference.auto =>
-        firestoreService.isReady ? _createRemote() : _createLocal(),
+      DataSourcePreference.auto => _createRemote(),
     };
-    if (!dataSource.isRemote) {
-      await cacheStore.seedIfEmpty();
-    }
     return dataSource;
   }
 
-  /// The cache store shared by both implementations.
-  PostCacheStore get cacheStore => PostCacheStore(preferences);
+  /// The cache store used by the remote data source for offline support.
+  PostCacheStore get cacheStore => PostCacheStore();
 
   PostDataSource _createRemote() => FirestorePostDataSource(
-    firestoreService: firestoreService,
-    preferences: preferences,
-  );
+        firestoreService: firestoreService,
+        cacheStore: cacheStore,
+      );
 
   PostDataSource _createLocal() => LocalPostDataSource(cacheStore: cacheStore);
 }
@@ -70,6 +53,6 @@ enum DataSourcePreference {
   /// Always use Cloud Firestore.
   remote,
 
-  /// Always use the on-device cache.
+  /// Always use the on-device cache (unit tests only).
   local,
 }

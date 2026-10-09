@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'injection.dart';
-import 'services/firestore_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,15 +27,7 @@ Future<void> main() async {
   // Build the dependency graph before the first frame.
   await registerDependencies();
 
-  final FirestoreService firestoreService = FirestoreService.instance;
-  if (firestoreService.isDemoMode) {
-    debugPrint(
-      '[ConnectMe] Running with the local cache — '
-      '${firestoreService.unavailableReason}',
-    );
-  } else {
-    debugPrint('[ConnectMe] Connected to Cloud Firestore.');
-  }
+  debugPrint('[ConnectMe] Connected to Cloud Firestore.');
   debugPrint('[ConnectMe] ${AppConfig.appName} ${AppConfig.versionName}');
 
   runApp(const ConnectMeApp());

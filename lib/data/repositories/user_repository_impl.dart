@@ -1,10 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/errors/firebase_error_mapper.dart';
 import '../../core/result/result.dart';
 import '../../domain/entities/community_member.dart';
@@ -15,23 +12,15 @@ import '../../services/firestore_service.dart';
 import '../models/community_member_model.dart';
 import '../models/user_model.dart';
 
-/// Authentication + profile persistence.
-///
-/// * Firebase mode — the `users` collection is the single source of truth and
-///   Firestore streams drive [authStateChanges].
-/// * Demo mode — [AuthService] keeps the session in `SharedPreferences` and
-///   this repository mirrors the profile document into the same storage so the
-///   rest of the app behaves identically.
+/// Authentication + profile persistence using Firebase Firestore as the single source of truth.
 class UserRepositoryImpl implements UserRepository {
   UserRepositoryImpl({
     required this.authService,
     required this.firestoreService,
-    required this.preferences,
   });
 
   final AuthService authService;
   final FirestoreService firestoreService;
-  final SharedPreferences preferences;
 
   @override
   Stream<User?> authStateChanges() => authService.authStateChanges();
@@ -160,36 +149,27 @@ class UserRepositoryImpl implements UserRepository {
 
   @override
   Future<Result<void>> cacheUser(User? user) async {
-    try {
-      if (user == null) {
-        await preferences.remove(AppConstants.localSessionKey);
-        return const Success<void>(null);
-      }
-      await preferences.setString(
-        AppConstants.localSessionKey,
-        jsonEncode(UserModel.fromEntity(user).toJson()),
-      );
-      return const Success<void>(null);
-    } on Object catch (error) {
-      return ResultFailure<void>(FirebaseErrorMapper.map(error));
-    }
+    // No-op: session is managed by Firebase Auth persistence
+    return const Success<void>(null);
   }
 
   @override
   Future<Result<List<CommunityMember>>> getCommunityMembers() async {
     try {
-      final String cached =
-          preferences.getString(AppConstants.cachedMembersKey) ?? '';
-      if (cached.isNotEmpty) {
-        return Success<List<CommunityMember>>(
-          CommunityMemberModel.listFromCacheJson(cached),
-        );
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await firestoreService.usersCollection
+              .where('isCommunityMember', isEqualTo: true)
+              .get();
+      final List<CommunityMember> members = snapshot.docs
+          .map((doc) => CommunityMemberModel.fromJson({
+                ...doc.data(),
+                'id': doc.id,
+              }))
+          .toList();
+      if (members.isEmpty) {
+        return Success<List<CommunityMember>>(CommunityMemberModel.seeded);
       }
-      await preferences.setString(
-        AppConstants.cachedMembersKey,
-        CommunityMemberModel.seededJson(),
-      );
-      return Success<List<CommunityMember>>(CommunityMemberModel.seeded);
+      return Success<List<CommunityMember>>(members);
     } on Object catch (error) {
       return ResultFailure<List<CommunityMember>>(
         FirebaseErrorMapper.map(error),
@@ -199,49 +179,28 @@ class UserRepositoryImpl implements UserRepository {
 
   // --- Internals -------------------------------------------------------------
 
-  /// Reads a `users/{id}` document, falling back to the local session copy.
+  /// Reads a `users/{id}` document from Firestore.
   Future<UserModel?> _readProfile(String userId) async {
-    if (firestoreService.isReady && userId.isNotEmpty) {
-      try {
-        final Map<String, dynamic>? data = await firestoreService
-            .usersCollection
-            .doc(userId)
-            .get()
-            .then(
-              (snapshot) => snapshot.exists && snapshot.data() != null
-                  ? <String, dynamic>{...snapshot.data()!, 'id': snapshot.id}
-                  : null,
-            );
-        if (data != null) {
-          return UserModel.fromJson(data);
-        }
-      } on Object {
-        // Fall through to the local copy.
-      }
+    if (userId.isEmpty) return null;
+    try {
+      final snapshot = await firestoreService.usersCollection.doc(userId).get();
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      final Map<String, dynamic> data = {
+        ...snapshot.data()!,
+        'id': snapshot.id,
+      };
+      return UserModel.fromJson(data);
+    } on Object {
+      return null;
     }
-
-    final User? session = authService.currentUser();
-    if (session != null && session.id == userId) {
-      return UserModel.fromEntity(session);
-    }
-    return null;
   }
 
-  /// Writes the profile document to Firestore and mirrors it locally.
+  /// Writes the profile document to Firestore.
   Future<void> _writeProfile(UserModel profile) async {
-    if (firestoreService.isReady && profile.id.isNotEmpty) {
-      try {
-        await firestoreService.usersCollection
-            .doc(profile.id)
-            .set(profile.toJson(), SetOptions(merge: true));
-      } on Object {
-        // Local mirror below still keeps the UI consistent.
-      }
-    }
-    await preferences.setString(
-      AppConstants.localSessionKey,
-      jsonEncode(profile.toJson()),
-    );
+    if (profile.id.isEmpty) return;
+    await firestoreService.usersCollection
+        .doc(profile.id)
+        .set(profile.toJson(), SetOptions(merge: true));
   }
 
   /// Keeps the freshly authenticated identity while preserving the fields that

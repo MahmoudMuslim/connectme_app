@@ -61,7 +61,6 @@ class AuthCubit extends Cubit<AuthState> {
 
   /// Restores the persisted session. Called once from the splash screen.
   Future<void> bootstrap() async {
-    emit(state.copyWith(isDemoMode: authService.isDemoMode));
     final Result<User?> result = await restoreSession();
     if (isClosed) {
       return;

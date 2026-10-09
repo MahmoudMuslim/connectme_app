@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../services/firestore_service.dart';
@@ -20,14 +18,14 @@ import 'post_datasource.dart';
 class FirestorePostDataSource implements PostDataSource {
   FirestorePostDataSource({
     required this.firestoreService,
-    required this.preferences,
+    required this.cacheStore,
   });
 
   /// Singleton injected by the factory.
   final FirestoreService firestoreService;
 
   /// Used to mirror every remote read into the offline cache.
-  final SharedPreferences preferences;
+  final PostCacheStore cacheStore;
 
   @override
   String get sourceName => 'Cloud Firestore';
@@ -85,21 +83,14 @@ class FirestorePostDataSource implements PostDataSource {
 
   @override
   Future<void> saveToCache(List<PostModel> posts) async {
-    final List<Map<String, dynamic>> encoded = posts
-        .map((PostModel post) => post.toJson())
-        .toList();
-    await preferences.setString(
-      AppConstants.cachedPostsKey,
-      jsonEncode(encoded),
-    );
+    await cacheStore.write(posts);
   }
 
   @override
-  Future<List<PostModel>> readCache() async =>
-      PostCacheStore(preferences).read();
+  Future<List<PostModel>> readCache() async => cacheStore.read();
 
   @override
-  Stream<List<PostModel>> watchCache() => PostCacheStore(preferences).watch();
+  Stream<List<PostModel>> watchCache() => cacheStore.watch();
 
 /// Builds the map sent to Cloud Firestore.
   ///

@@ -37,6 +37,23 @@
       font-family: 'Poppins', system-ui, -apple-system, sans-serif;
     }
   </style>
+
+  <!-- Firebase SDK (web) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    // Initialize Firebase using the same config as firebase_options.dart
+    const firebaseConfig = {
+      apiKey: "AIzaSyCSfV_8fHXEJ1Nur7807EfGkqvUPaLpQsg",
+      authDomain: "studio-3887960052-c09f5.firebaseapp.com",
+      projectId: "studio-3887960052-c09f5",
+      storageBucket: "studio-3887960052-c09f5.firebasestorage.app",
+      messagingSenderId: "441539093867",
+      appId: "1:441539093867:web:445689f8e2eb52d055582e"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

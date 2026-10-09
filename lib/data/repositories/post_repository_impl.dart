@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/errors/failures.dart';
 import '../../core/errors/firebase_error_mapper.dart';
@@ -24,15 +23,13 @@ import '../models/post_model.dart';
 class PostRepositoryImpl implements PostRepository {
   PostRepositoryImpl._({required this.dataSource, required this.cacheStore});
 
-  /// Creates the repository with the correct data source.
+  /// Creates the repository with the Firestore data source.
   static Future<PostRepositoryImpl> create({
     required FirestoreService firestoreService,
-    required SharedPreferences preferences,
     DataSourcePreference preference = DataSourcePreference.auto,
   }) async {
     final PostDataSourceFactory factory = PostDataSourceFactory(
       firestoreService: firestoreService,
-      preferences: preferences,
     );
     final PostCacheStore cacheStore = factory.cacheStore;
     return PostRepositoryImpl._(

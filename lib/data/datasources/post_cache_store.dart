@@ -1,71 +1,50 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../core/constants/app_constants.dart';
 import '../models/post_model.dart';
 
-/// `SharedPreferences` backed store for the cached posts.
+/// In-memory store for cached posts (offline support during session).
 ///
 /// Both post data sources share it, so a remote read and an offline read always
 /// see the exact same payload and there is a single place to change the
 /// persistence format.
 class PostCacheStore {
-  PostCacheStore(this.preferences);
+  PostCacheStore();
 
-  final SharedPreferences preferences;
+  final List<PostModel> _posts = <PostModel>[];
 
   /// Broadcasts the cached payload to whoever is watching the feed offline.
   final StreamController<List<PostModel>> _updates =
       StreamController<List<PostModel>>.broadcast();
 
-  /// Reads and decodes the cached posts, returning an empty list when the cache
-  /// is empty or corrupted.
-  List<PostModel> read() {
-    final String raw = preferences.getString(AppConstants.cachedPostsKey) ?? '';
-    if (raw.isEmpty) {
-      return <PostModel>[];
-    }
-    try {
-      final List<dynamic> decoded = jsonDecode(raw) as List<dynamic>;
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .map(PostModel.fromJson)
-          .toList();
-    } on Object {
-      return <PostModel>[];
-    }
-  }
+  /// Reads the cached posts.
+  List<PostModel> read() => List<PostModel>.from(_posts);
 
-  /// Encodes and stores [posts], then notifies the cache listeners.
+  /// Stores [posts], then notifies the cache listeners.
   Future<void> write(List<PostModel> posts) async {
-    final List<Map<String, dynamic>> encoded = posts
-        .map((PostModel post) => post.toJson())
-        .toList();
-    await preferences.setString(
-      AppConstants.cachedPostsKey,
-      jsonEncode(encoded),
-    );
+    _posts
+      ..clear()
+      ..addAll(posts);
     if (!_updates.isClosed) {
-      _updates.add(posts);
+      _updates.add(read());
     }
   }
 
   /// Appends a single post, newest first.
   Future<void> append(PostModel post) async {
-    final List<PostModel> current = read();
-    current.removeWhere((PostModel item) => item.id == post.id);
-    current.insert(0, post);
-    await write(current);
+    _posts.removeWhere((PostModel item) => item.id == post.id);
+    _posts.insert(0, post);
+    if (!_updates.isClosed) {
+      _updates.add(read());
+    }
   }
 
   /// Removes a post by id.
   Future<void> remove(String postId) async {
-    final List<PostModel> current = read()
-      ..removeWhere((PostModel item) => item.id == postId);
-    await write(current);
+    _posts.removeWhere((PostModel item) => item.id == postId);
+    if (!_updates.isClosed) {
+      _updates.add(read());
+    }
   }
 
   /// Emits the cached payload immediately and on every later write.
@@ -77,16 +56,12 @@ class PostCacheStore {
   /// Releases the broadcast stream.
   Future<void> dispose() => _updates.close();
 
-  /// Fills the cache with a believable community feed the first time the app is
-  /// opened without Firebase, so the demo build never shows an empty screen.
+  /// Fills the cache with a believable community feed (for testing).
   Future<void> seedIfEmpty() async {
-    if (read().isNotEmpty) {
-      return;
-    }
+    if (_posts.isNotEmpty) return;
     await write(_seedPosts());
   }
 
-  /// The demo roster used when no backend is reachable.
   static List<PostModel> demoSeed() => _seedPosts();
 
   static List<PostModel> _seedPosts() {

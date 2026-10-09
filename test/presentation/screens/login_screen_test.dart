@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
-import 'package:connectme_app/core/constants/app_constants.dart';
 import 'package:connectme_app/core/constants/app_routes.dart';
 import 'package:connectme_app/core/errors/failures.dart';
 import 'package:connectme_app/core/result/result.dart';
@@ -23,7 +22,6 @@ import 'package:connectme_app/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-memory [UserRepository] so the login form can be exercised end to end
 /// without a Firebase project.
@@ -147,13 +145,10 @@ void main() {
 
   setUp(() async {
     repository = FakeUserRepository();
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      AppConstants.localSessionKey: '',
-    });
-    // The cubit needs a `FirestoreService`; force demo mode so the test never
-    // reaches a Firebase platform channel.
-    FirestoreService.useDemoMode();
-    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    // Use a fake FirestoreService for testing
+    FirestoreService.registerInstance(
+      FirestoreService.forTesting(_FakeFirestore()),
+    );
     cubit = AuthCubit(
       signInUseCase: SignIn(repository),
       signUpUseCase: SignUp(repository),
@@ -162,7 +157,6 @@ void main() {
       restoreSession: RestoreSession(repository),
       watchAuthState: WatchAuthState(repository),
       authService: AuthService.create(
-        preferences: preferences,
         firestoreService: FirestoreService.instance,
       ),
     );
@@ -377,4 +371,9 @@ void main() {
       }
     });
   });
+}
+
+/// Minimal fake Firestore for testing.
+class _FakeFirestore {
+  const _FakeFirestore();
 }

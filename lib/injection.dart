@@ -1,5 +1,4 @@
 import 'package:get_it/get_it.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/repositories/donation_repository_impl.dart';
 import 'data/repositories/post_repository_impl.dart';
@@ -44,20 +43,13 @@ import 'services/payment/payment_gateway.dart';
 /// cubit to be unit tested with fakes — none of them ever calls `GetIt.find`.
 final GetIt getIt = GetIt.instance;
 
-/// Registration name of the [FirestoreService] singleton.
-const String firestoreServiceName = 'firestoreService';
-
 /// Builds the whole object graph.
 ///
-/// Must be awaited **before** `runApp` because [SharedPreferences] is async.
+/// Must be awaited **before** `runApp` because Firebase initialization is async.
 Future<GetIt> registerDependencies() async {
-  if (getIt.isRegistered<SharedPreferences>()) {
+  if (getIt.isRegistered<FirestoreService>()) {
     return getIt;
   }
-
-  // ---------------------------------------------------------------- External
-  final SharedPreferences preferences = await SharedPreferences.getInstance();
-  getIt.registerSingleton<SharedPreferences>(preferences);
 
   // ------------------------------------------------------- Infrastructure
   // SINGLETON PATTERN: the Firestore service is registered as a singleton and
@@ -68,7 +60,6 @@ Future<GetIt> registerDependencies() async {
   getIt.registerSingleton<FirestoreService>(firestoreService);
 
   final AuthService authService = AuthService.create(
-    preferences: preferences,
     firestoreService: firestoreService,
   );
   AuthService.registerInstance(authService);
@@ -92,10 +83,8 @@ Future<GetIt> registerDependencies() async {
   getIt.registerSingleton<PaymentGateway>(paymentGateway);
 
   // ------------------------------------------------------------ Repositories
-  // FACTORY PATTERN: `create` asks the factory which data source to build.
   final PostRepositoryImpl postRepository = await PostRepositoryImpl.create(
     firestoreService: firestoreService,
-    preferences: preferences,
   );
   // Registered under both keys: the cubit needs the concrete type to read the
   // "which data source?" metadata, while the use cases depend on the interface.
@@ -106,14 +95,12 @@ Future<GetIt> registerDependencies() async {
   final UserRepository userRepository = UserRepositoryImpl(
     authService: authService,
     firestoreService: firestoreService,
-    preferences: preferences,
   );
   getIt.registerSingleton<UserRepository>(userRepository);
 
   final DonationRepository donationRepository = DonationRepositoryImpl(
     gateway: paymentGateway,
     firestoreService: firestoreService,
-    preferences: preferences,
   );
   getIt.registerSingleton<DonationRepository>(donationRepository);
 

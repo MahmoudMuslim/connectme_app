@@ -24,7 +24,6 @@ class AuthState extends Equatable {
     this.user,
     this.errorMessage,
     this.successMessage,
-    this.isDemoMode = false,
   });
 
   final AuthStatus status;
@@ -39,9 +38,6 @@ class AuthState extends Equatable {
   /// User friendly success message (e.g. password reset sent).
   final String? successMessage;
 
-  /// `true` when the app runs without a Firebase project (local accounts).
-  final bool isDemoMode;
-
   bool get isAuthenticated =>
       status == AuthStatus.authenticated && user != null;
 
@@ -52,7 +48,6 @@ class AuthState extends Equatable {
     User? user,
     String? errorMessage,
     String? successMessage,
-    bool? isDemoMode,
     bool clearError = false,
     bool clearUser = false,
     bool clearSuccess = false,
@@ -62,11 +57,10 @@ class AuthState extends Equatable {
       user: clearUser ? null : (user ?? this.user),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       successMessage: clearSuccess ? null : (successMessage ?? this.successMessage),
-      isDemoMode: isDemoMode ?? this.isDemoMode,
     );
   }
 
   @override
   List<Object?> get props =>
-      <Object?>[status, user, errorMessage, successMessage, isDemoMode];
+      <Object?>[status, user, errorMessage, successMessage];
 }

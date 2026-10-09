@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/failures.dart';
@@ -32,12 +30,12 @@ class DonationRepositoryImpl implements DonationRepository {
   DonationRepositoryImpl({
     required this.gateway,
     required this.firestoreService,
-    required this.preferences,
   });
 
   final PaymentGateway gateway;
   final FirestoreService firestoreService;
-  final SharedPreferences preferences;
+
+  final List<DonationModel> _cache = <DonationModel>[];
 
   @override
   Future<Result<Donation>> donate({
@@ -75,13 +73,14 @@ class DonationRepositoryImpl implements DonationRepository {
         ),
       );
 
-      if (firestoreService.isReady) {
-        await firestoreService.donationsCollection
-            .doc(donation.id)
-            .set(_toFirestore(donation.toJson()));
-      } else {
-        await _appendToCache(donation);
-      }
+      await firestoreService.donationsCollection
+          .doc(donation.id)
+          .set(_toFirestore(donation.toJson()));
+
+      _cache
+        ..removeWhere((DonationModel item) => item.id == donation.id)
+        ..insert(0, donation);
+
       return Success<Donation>(donation);
     } on Object catch (error) {
       return ResultFailure<Donation>(FirebaseErrorMapper.map(error));
@@ -91,20 +90,15 @@ class DonationRepositoryImpl implements DonationRepository {
   @override
   Stream<Result<List<Donation>>> watchDonations() async* {
     try {
-      if (firestoreService.isReady) {
-        await for (final QuerySnapshot<Map<String, dynamic>> snapshot
-            in firestoreService.donationsCollection
-                .orderBy(AppConstants.createdAtField, descending: true)
-                .limit(AppConstants.feedPageSize)
-                .snapshots()) {
-          yield Success<List<Donation>>(
-            snapshot.docs.map(_fromFirestore).toList(),
-          );
-        }
-        return;
+      await for (final QuerySnapshot<Map<String, dynamic>> snapshot
+          in firestoreService.donationsCollection
+              .orderBy(AppConstants.createdAtField, descending: true)
+              .limit(AppConstants.feedPageSize)
+              .snapshots()) {
+        yield Success<List<Donation>>(
+          snapshot.docs.map(_fromFirestore).toList(),
+        );
       }
-
-      yield Success<List<Donation>>(_readCache());
     } on Object catch (error) {
       yield ResultFailure<List<Donation>>(FirebaseErrorMapper.map(error));
     }
@@ -113,17 +107,12 @@ class DonationRepositoryImpl implements DonationRepository {
   @override
   Future<Result<List<Donation>>> getDonationsOf(String donorId) async {
     try {
-      List<DonationModel> donations;
-      if (firestoreService.isReady) {
-        final QuerySnapshot<Map<String, dynamic>> snapshot =
-            await firestoreService.donationsCollection
-                .where(AppConstants.authorIdField, isEqualTo: donorId)
-                .orderBy(AppConstants.createdAtField, descending: true)
-                .get();
-        donations = snapshot.docs.map(_fromFirestore).toList();
-      } else {
-        donations = _readCache();
-      }
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await firestoreService.donationsCollection
+              .where(AppConstants.authorIdField, isEqualTo: donorId)
+              .orderBy(AppConstants.createdAtField, descending: true)
+              .get();
+      final List<DonationModel> donations = snapshot.docs.map(_fromFirestore).toList();
       return Success<List<Donation>>(
         donations
             .where((DonationModel donation) => donation.donorId == donorId)
@@ -139,19 +128,12 @@ class DonationRepositoryImpl implements DonationRepository {
     try {
       double total = 0;
       String currency = AppConstants.defaultCurrency;
-      if (firestoreService.isReady) {
-        final QuerySnapshot<Map<String, dynamic>> snapshot =
-            await firestoreService.donationsCollection.get();
-        for (final DocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
-          final DonationModel donation = _fromFirestore(doc);
-          total += donation.money.amount;
-          currency = donation.money.currency;
-        }
-      } else {
-        for (final DonationModel donation in _readCache()) {
-          total += donation.money.amount;
-          currency = donation.money.currency;
-        }
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await firestoreService.donationsCollection.get();
+      for (final DocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
+        final DonationModel donation = _fromFirestore(doc);
+        total += donation.money.amount;
+        currency = donation.money.currency;
       }
       return Success<Money>(
         Money(
@@ -193,32 +175,6 @@ class DonationRepositoryImpl implements DonationRepository {
       if (createdAt is Timestamp)
         AppConstants.createdAtField: createdAt.toDate().toIso8601String(),
     });
-  }
-
-  List<DonationModel> _readCache() {
-    final String raw =
-        preferences.getString(AppConstants.cachedDonationsKey) ?? '';
-    if (raw.isEmpty) {
-      return <DonationModel>[];
-    }
-    try {
-      return (jsonDecode(raw) as List<dynamic>)
-          .whereType<Map<String, dynamic>>()
-          .map(DonationModel.fromJson)
-          .toList();
-    } on Object {
-      return <DonationModel>[];
-    }
-  }
-
-  Future<void> _appendToCache(DonationModel donation) async {
-    final List<DonationModel> donations = _readCache()
-      ..removeWhere((DonationModel item) => item.id == donation.id)
-      ..insert(0, donation);
-    await preferences.setString(
-      AppConstants.cachedDonationsKey,
-      jsonEncode(donations.map((DonationModel item) => item.toJson()).toList()),
-    );
   }
 
   Failure _asFailure(Object? error) {
