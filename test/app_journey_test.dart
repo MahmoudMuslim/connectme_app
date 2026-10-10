@@ -1,5 +1,4 @@
 import 'package:connectme_app/app.dart';
-import 'package:connectme_app/core/constants/app_constants.dart';
 import 'package:connectme_app/core/result/result.dart';
 import 'package:connectme_app/domain/entities/user.dart';
 import 'package:connectme_app/domain/usecases/restore_session.dart';
@@ -14,9 +13,9 @@ import 'package:connectme_app/presentation/screens/profile_screen.dart';
 import 'package:connectme_app/presentation/widgets/feed_tab_bar.dart';
 import 'package:connectme_app/presentation/widgets/post_card.dart';
 import 'package:connectme_app/presentation/widgets/user_avatar.dart';
+import 'package:connectme_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/connect_me_test_binding.dart';
 
@@ -202,21 +201,20 @@ void main() {
     expect(find.byIcon(Icons.location_on_rounded), findsWidgets);
   });
 
-  test('registering persists the session (auth state persistence)', () async {
+  test('registering publishes an authenticated session', () async {
     await resetConnectMe();
 
-    // Register through the real use case so a session document is persisted.
-    await getIt<SignUp>()(
+    // Register through the real use case: the repository delegates to
+    // AuthService, which publishes the new session (Firebase-owned).
+    final Result<User> result = await getIt<SignUp>()(
       fullName: 'Bruno Pham',
       email: 'bruno@connectme.app',
       password: 'secret123',
       confirmPassword: 'secret123',
     );
 
-    final String? session = (await SharedPreferences.getInstance()).getString(
-      AppConstants.localSessionKey,
-    );
-    expect(session, isNotEmpty);
+    expect(result.isSuccess, isTrue);
+    expect(getIt<AuthService>().currentUser(), isNotNull);
   });
 
   test('a persisted session lets a cold start skip the login screen', () async {

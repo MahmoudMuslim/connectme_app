@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import '../models/post_model.dart';
 
@@ -55,74 +54,4 @@ class PostCacheStore {
 
   /// Releases the broadcast stream.
   Future<void> dispose() => _updates.close();
-
-  /// Fills the cache with a believable community feed (for testing).
-  Future<void> seedIfEmpty() async {
-    if (_posts.isNotEmpty) return;
-    await write(_seedPosts());
-  }
-
-  static List<PostModel> demoSeed() => _seedPosts();
-
-  static List<PostModel> _seedPosts() {
-    final DateTime now = DateTime.now();
-    final Random random = Random(7);
-    return <PostModel>[
-      PostModel.forNewPost(
-        id: 'seed-1',
-        authorId: 'seed-bruno',
-        authorName: 'Bruno Pham',
-        content:
-            'Just wrapped the ConnectMe beta build. The biometric gate on the '
-            'profile screen feels instant on a Pixel 8. Screenshots coming soon!',
-        createdAt: now.subtract(const Duration(minutes: 42)),
-      ),
-      PostModel.forNewPost(
-        id: 'seed-2',
-        authorId: 'seed-amira',
-        authorName: 'Amira Hassan',
-        content:
-            'Cairo chapter is hosting an open source sprint this Friday. '
-            'Bring a laptop, we will review pull requests together.',
-        createdAt: now.subtract(const Duration(hours: 3)),
-      ),
-      PostModel.forNewPost(
-        id: 'seed-3',
-        authorId: 'seed-thanh',
-        authorName: 'Thanh Pham',
-        content:
-            'Reminder: Firestore rules are now deployed on the community '
-            'project. Reads stay public, writes require authentication.',
-        createdAt: now.subtract(const Duration(hours: 7)),
-      ),
-      PostModel.forNewPost(
-        id: 'seed-4',
-        authorId: 'seed-lucas',
-        authorName: 'Lucas Ferreira',
-        content:
-            'Clean Architecture pays off: swapping Firestore for a local cache '
-            'was a 3 line change thanks to the repository factory.',
-        createdAt: now.subtract(const Duration(days: 1, hours: 2)),
-      ),
-      PostModel.forNewPost(
-        id: 'seed-5',
-        authorId: 'seed-yuki',
-        authorName: 'Yuki Tanaka',
-        content:
-            'Tokyo chapter, we translated the onboarding flow. The pill shaped '
-            'fields match the design system perfectly.',
-        createdAt: now.subtract(const Duration(days: 2)),
-      ),
-      PostModel(
-        id: 'seed-6',
-        authorId: 'seed-bruno',
-        authorName: 'Bruno Pham',
-        content:
-            'Anyone else loving the 60dp gradient FAB? It reads as a button.',
-        createdAt: now.subtract(const Duration(days: 4)),
-        likeCount: 18 + random.nextInt(9),
-        commentCount: 4 + random.nextInt(5),
-      ),
-    ];
-  }
 }

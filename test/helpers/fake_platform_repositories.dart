@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:connectme_app/core/errors/failures.dart';
 import 'package:connectme_app/core/result/result.dart';
+import 'package:connectme_app/data/models/user_model.dart';
 import 'package:connectme_app/domain/entities/device_info.dart';
+import 'package:connectme_app/domain/entities/user.dart';
 import 'package:connectme_app/domain/usecases/get_device_info.dart';
 import 'package:connectme_app/domain/usecases/verify_biometrics.dart';
+import 'package:connectme_app/services/auth_service.dart';
+import 'package:connectme_app/services/firestore_service.dart';
 
 /// Biometric stand-in used by the widget tests.
 ///
@@ -69,4 +75,91 @@ class FakeDeviceInfoRepository implements DeviceInfoRepository {
   @override
   Future<Result<DeviceInfo>> read() async =>
       Success<DeviceInfo>(info ?? sample);
+}
+
+/// In-memory [AuthService] used by the widget tests.
+///
+/// The real service resolves `FirebaseAuth.instance`, which throws
+/// `[core/no-app]` inside the test VM. This fake mirrors the same session
+/// contract (sign up / sign in publish a user, sign out clears it) without any
+/// Firebase dependency, so the whole widget graph stays exercised.
+class FakeAuthService implements AuthService {
+  FakeAuthService({required this.firestoreService});
+
+  @override
+  final FirestoreService firestoreService;
+
+  final StreamController<User?> _controller =
+      StreamController<User?>.broadcast();
+
+  User? _current;
+
+  @override
+  Stream<User?> authStateChanges() async* {
+    yield _current;
+    yield* _controller.stream;
+  }
+
+  @override
+  Future<User?> restoreSession() async => _current;
+
+  @override
+  User? currentUser() => _current;
+
+  @override
+  Future<User> signIn({required String email, required String password}) async {
+    final User user = _userFor(
+      email: email,
+      fullName: _nameFromEmail(email),
+    );
+    _setCurrent(user);
+    return user;
+  }
+
+  @override
+  Future<User> signUp({
+    required String fullName,
+    required String email,
+    required String password,
+    String? deviceModel,
+    String? osVersion,
+  }) async {
+    final User user = _userFor(email: email, fullName: fullName)
+        .withDeviceInfo(deviceModel: deviceModel, osVersion: osVersion);
+    _setCurrent(user);
+    return user;
+  }
+
+  @override
+  Future<void> signOut() async => _setCurrent(null);
+
+  @override
+  Future<void> sendPasswordResetEmail({required String email}) async {}
+
+  @override
+  Future<void> updateCurrentSession(User user) async => _setCurrent(user);
+
+  @override
+  Future<void> dispose() => _controller.close();
+
+  void _setCurrent(User? user) {
+    _current = user;
+    if (!_controller.isClosed) {
+      _controller.add(user);
+    }
+  }
+
+  UserModel _userFor({required String email, required String fullName}) {
+    return UserModel(
+      id: 'fake-${email.hashCode.toUnsigned(32)}',
+      fullName: fullName,
+      email: email,
+      joinedAt: DateTime.now(),
+    );
+  }
+
+  String _nameFromEmail(String email) {
+    final String local = email.split('@').first;
+    return local.isEmpty ? 'Community member' : local;
+  }
 }

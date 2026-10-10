@@ -54,16 +54,22 @@ Future<GetIt> registerDependencies() async {
   // ------------------------------------------------------- Infrastructure
   // SINGLETON PATTERN: the Firestore service is registered as a singleton and
   // also published through `FirestoreService.instance` so data sources can
-  // reach it without depending on GetIt.
-  final FirestoreService firestoreService = FirestoreService.instance;
-  FirestoreService.registerInstance(firestoreService);
+  // reach it without depending on GetIt. Initialization is awaited because
+  // `Firebase.initializeApp` is asynchronous on every platform.
+  final FirestoreService firestoreService = await FirestoreService.initialize();
   getIt.registerSingleton<FirestoreService>(firestoreService);
 
-  final AuthService authService = AuthService.create(
-    firestoreService: firestoreService,
-  );
-  AuthService.registerInstance(authService);
-  getIt.registerSingleton<AuthService>(authService);
+  // Guarded like the platform capabilities below: a widget test can publish a
+  // fake AuthService before calling this function and still receive the rest of
+  // the graph, because the real one would otherwise hit FirebaseAuth in the VM.
+  final AuthService authService;
+  if (getIt.isRegistered<AuthService>()) {
+    authService = getIt<AuthService>();
+  } else {
+    authService = AuthService.create(firestoreService: firestoreService);
+    AuthService.registerInstance(authService);
+    getIt.registerSingleton<AuthService>(authService);
+  }
 
   final BiometricService biometricService = BiometricService.instance;
   BiometricService.registerInstance(biometricService);
@@ -83,14 +89,22 @@ Future<GetIt> registerDependencies() async {
   getIt.registerSingleton<PaymentGateway>(paymentGateway);
 
   // ------------------------------------------------------------ Repositories
-  final PostRepositoryImpl postRepository = await PostRepositoryImpl.create(
-    firestoreService: firestoreService,
-  );
+  // Test seam: a widget test may pre-register a repository backed by the local
+  // data source so the feed can be driven without a live Firestore.
+  final PostRepositoryImpl postRepository;
+  if (getIt.isRegistered<PostRepositoryImpl>()) {
+    postRepository = getIt<PostRepositoryImpl>();
+  } else {
+    postRepository = await PostRepositoryImpl.create(
+      firestoreService: firestoreService,
+    );
+    getIt.registerSingleton<PostRepositoryImpl>(postRepository);
+  }
   // Registered under both keys: the cubit needs the concrete type to read the
   // "which data source?" metadata, while the use cases depend on the interface.
-  getIt
-    ..registerSingleton<PostRepositoryImpl>(postRepository)
-    ..registerSingleton<PostRepository>(postRepository);
+  if (!getIt.isRegistered<PostRepository>()) {
+    getIt.registerSingleton<PostRepository>(postRepository);
+  }
 
   final UserRepository userRepository = UserRepositoryImpl(
     authService: authService,
